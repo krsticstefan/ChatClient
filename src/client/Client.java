@@ -8,12 +8,8 @@ import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -29,29 +25,21 @@ public class Client extends JFrame implements ActionListener {
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
-    private String username;
-    private Message message;
+    private String username, message;
     private boolean listening;
+    private Thread t;
 
-    JPanel loginView;
-    private JTextField usernameText;
-    private JButton loginBtn;
-
-    JPanel chatView;
-    private JTextArea msgs;
-    private JTextField userMsg;
-    private JButton send;
-    private JButton exitBtn;
+    private JPanel loginView, chatView;
+    private JTextField usernameInput, msgInput;
+    private JButton loginBtn, sendBtn, exitBtn;
+    private JTextArea chatMsgs;
 
     public Client() {
         username = "not set";
         initLoginView();
-//        initChatView(); //init se u action zbog username
         initMainView();
         connectToServer();
         listening = true;
-
-//        listen(); //pomereno u performAction->login
     }
 
     private void initMainView() {
@@ -63,9 +51,9 @@ public class Client extends JFrame implements ActionListener {
     private void initLoginView() {
         loginView = new JPanel(new FlowLayout(FlowLayout.CENTER));
         loginBtn = new JButton("Log in");
-        usernameText = new JTextField(25);
+        usernameInput = new JTextField(25);
         loginView.add(new Label("Ukucajte vaše ime: "));
-        loginView.add(usernameText);
+        loginView.add(usernameInput);
         loginView.add(loginBtn);
         this.add(loginView);
         loginView.setVisible(true);
@@ -74,19 +62,19 @@ public class Client extends JFrame implements ActionListener {
 
     private void initChatView() {
         chatView = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        msgs = new JTextArea(25, 30);
-        userMsg = new JTextField(30);
-        send = new JButton("Send");
+        chatMsgs = new JTextArea(25, 30);
+        msgInput = new JTextField(30);
+        sendBtn = new JButton("Send");
         exitBtn = new JButton("Exit");
 
-        chatView.add(new Label("Konektovani ste kao: " + username + " napišite poruku:"));
-        chatView.add(msgs);
-        chatView.add(new JScrollPane(msgs), BorderLayout.CENTER);
+        chatView.add(new Label("CHAT - Konektovani ste kao '" + username + "'."));
+        chatView.add(chatMsgs);
+        chatView.add(new JScrollPane(chatMsgs), BorderLayout.CENTER);
         chatView.add(new Label("Napišite poruku:"));
-        chatView.add(userMsg);
-        chatView.add(send);
+        chatView.add(msgInput);
+        chatView.add(sendBtn);
         chatView.add(exitBtn);
-        send.addActionListener(this);
+        sendBtn.addActionListener(this);
         exitBtn.addActionListener(this);
     }
 
@@ -96,34 +84,44 @@ public class Client extends JFrame implements ActionListener {
             connection = new Socket(host, PORT);
             out = new ObjectOutputStream(connection.getOutputStream());
             in = new ObjectInputStream(connection.getInputStream());
+            chatMsgs.append("Povezani ste.");
         } catch (IOException ex) {
-            System.out.println(ex);
+            System.out.println("IOException in connectToServer: " + ex);
+        } catch (NullPointerException npe) {
+            System.out.println("NullPointer on connectToServer: " + npe);
+        } catch (Exception ex) {
+            System.out.println("Unkown exception in connectToServer: " + ex);
         }
         System.out.println("Connected.");
     }
 
     private void listen() {
-        do {
-            try {
-                message = (Message) in.readObject();
-                msgs.append("\n" + message.toString());
-            } catch (IOException | ClassNotFoundException ex) {
-                System.out.println("Error receving message: " + ex);
-                msgs.append("\n" + "Greška u prijemu poruke!");
-            } catch (NullPointerException npe) {
-                System.out.println("NullPointer at listen: " + npe);
+        t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (listening) {
+                    try {
+                        message = (String) in.readObject();
+                        chatMsgs.append("\n" + message);
+                    } catch (IOException | ClassNotFoundException ex) {
+                        System.out.println("Error receving message: " + ex);
+                        chatMsgs.append("\n" + "Greška u prijemu poruke!");
+                    } catch (NullPointerException npe) {
+                        System.out.println("NullPointer at listen: " + npe);
+                    }
+                }
             }
-        } while (listening);
+        });
+        t.start();
     }
 
     private void sendMessage(final String msg) {
-        String text = msg;
-        message = new Message(username, text);
+        message = username + ": " + msg;
         try {
             out.writeObject(message);
         } catch (IOException ex) {
             System.out.println("Error sending message: " + ex);
-            msgs.append("\n" + "Greška! Poruka nije poslata.");
+            chatMsgs.append("\n" + "Greška! Poruka nije poslata.");
         } catch (NullPointerException npe) {
             System.out.println("Null pointer at send: " + npe);
         }
@@ -132,7 +130,7 @@ public class Client extends JFrame implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getActionCommand().equalsIgnoreCase("Log in")) {
-            String uname = usernameText.getText();
+            String uname = usernameInput.getText();
             if (uname != null && !uname.isEmpty()) {
                 username = uname;
                 initChatView();
@@ -140,7 +138,6 @@ public class Client extends JFrame implements ActionListener {
                 this.remove(loginView);
                 this.add(chatView);
                 chatView.setVisible(true);
-                chatView.repaint();
                 listen();
             }
         }
@@ -150,16 +147,17 @@ public class Client extends JFrame implements ActionListener {
                 in.close();
                 out.close();
                 connection.close();
+//                t.interrupt(); //interruptedEx is never thrown?
             } catch (IOException ex) {
                 System.out.println("Error closing connection: " + ex);
-                msgs.append("\n" + "Greška u zatvaranju stream-ova ili socket-a.");
+                chatMsgs.append("\n" + "Greška u zatvaranju stream-ova ili socket-a.");
             } finally {
                 System.exit(0);
             }
         } else if (e.getActionCommand().equalsIgnoreCase("Send")) {
-            String msg = userMsg.getText();
+            String msg = msgInput.getText();
             if (msg != null && !msg.isEmpty()) {
-                sendMessage(userMsg.getText());
+                sendMessage(msgInput.getText());
             }
         }
     }
