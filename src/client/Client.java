@@ -99,16 +99,16 @@ public class Client extends JFrame implements ActionListener {
         t = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (listening) {
-                    try {
-                        message = (String) in.readObject();
-                        chatMsgs.append("\n" + message);
-                    } catch (IOException | ClassNotFoundException ex) {
-                        System.out.println("Error receving message: " + ex);
-                        chatMsgs.append("\n" + "Greška u prijemu poruke!");
-                    } catch (NullPointerException npe) {
-                        System.out.println("NullPointer at listen: " + npe);
+                try {
+                    while (listening) { //promenjeno bez testiranja!
+                    message = (String) in.readObject();
+                    chatMsgs.append("\n" + message);
                     }
+                } catch (IOException | ClassNotFoundException ex) {
+                    System.out.println("Error receving message: " + ex);
+                    chatMsgs.append("\n" + "Greška u prijemu poruke!");
+                } catch (NullPointerException npe) {
+                    System.out.println("NullPointer at listen: " + npe);
                 }
             }
         });
@@ -147,7 +147,8 @@ public class Client extends JFrame implements ActionListener {
                 in.close();
                 out.close();
                 connection.close();
-//                t.interrupt(); //interruptedEx is never thrown?
+//                t.interrupt(); //interruptedEx is never thrown? //vidi posle ubacivanja while u try block u listen()
+                //dodaj prihvatanje zatvaranja socketa i strimova sa server strane (EOFException)
             } catch (IOException ex) {
                 System.out.println("Error closing connection: " + ex);
                 chatMsgs.append("\n" + "Greška u zatvaranju stream-ova ili socket-a.");
