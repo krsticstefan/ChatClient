@@ -21,7 +21,7 @@ public class Client extends JFrame implements ActionListener {
 
     /* TODO:
      * odvojiti grafiku
-     * moguciti unos IP-a. (?)
+     * moguciti unos IP-a, rad sa razlicitih masina (?)
      */
     private static final int PORT = 9000;
     private InetAddress host;
@@ -52,8 +52,6 @@ public class Client extends JFrame implements ActionListener {
         usernameInput = new JTextField(30);
         loginView.add(new Label("Ukucajte vaše ime: "));
         loginView.add(usernameInput);
-//        loginView.add(new Label("Ukucajte IP adresu servera: "));
-//        loginView.add(ipInput);
         loginView.add(loginBtn);
         this.add(loginView);
         loginView.setVisible(true);
@@ -92,14 +90,9 @@ public class Client extends JFrame implements ActionListener {
             in = new ObjectInputStream(connection.getInputStream());
             chatMsgs.append("\n" + "Connected.");
             System.out.println("Connected.");
-        } catch (IOException ex) {
+        } catch (IOException | NullPointerException ex) {
             chatMsgs.append("\n" + "Server not running.");
-            System.out.println("IOException in connectToServer: " + ex);
-        } catch (NullPointerException npe) {
-            chatMsgs.append("\n" + "Server not running.");
-            System.out.println("NullPointer on connectToServer: " + npe);
-        } catch (Exception ex) {
-            System.out.println("Unkown exception in connectToServer: " + ex);
+            System.out.println("connectToServer: " + ex);
         }
     }
 
@@ -112,12 +105,9 @@ public class Client extends JFrame implements ActionListener {
                         message = (String) in.readObject();
                         chatMsgs.append("\n" + message);
                     }
-                } catch (IOException | ClassNotFoundException ex) {
-                    chatMsgs.append("\n" + "Server is down.");
-                    System.out.println("Error receving message: " + ex);
-                } catch (NullPointerException npe) {
-                    chatMsgs.append("\n" + "Server is down.");
-                    System.out.println("NullPointer at Client-listen(): " + npe);
+                } catch (IOException | ClassNotFoundException | NullPointerException ex) {
+                    chatMsgs.append("\n" + "Streams are not open.");
+                    System.out.println("Client-listen(): " + ex);
                 }
             }
         });
@@ -128,12 +118,9 @@ public class Client extends JFrame implements ActionListener {
         message = username + msg;
         try {
             out.writeObject(message);
-        } catch (IOException ex) {
-            System.out.println("Error sending message: " + ex);
-            chatMsgs.append("\n" + "Server is down, message not sent.");
-        } catch (NullPointerException npe) {
-            chatMsgs.append("\n" + "Server not running.");
-            System.out.println("Null pointer at send: " + npe);
+        } catch (IOException | NullPointerException ex) {
+            System.out.println("sendMessage: " + ex);
+            chatMsgs.append("\n" + "Message not sent.");
         }
     }
 
@@ -162,8 +149,7 @@ public class Client extends JFrame implements ActionListener {
                 connection.close();
                 t.interrupt();
             } catch (IOException ex) {
-                System.out.println("Error closing connection: " + ex);
-                chatMsgs.append("\n" + "Greška u zatvaranju stream-ova ili socket-a.");
+                System.out.println("actionPerformed: " + ex);
             } finally {
                 System.exit(0);
             }
